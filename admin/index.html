@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ADMIN — VOID</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+:root{--bg:#0a0a0a;--fg:#c8ff00;--dim:#2a3800;--b:#00ffc8;--red:#ff4040;--border:#1a1a1a;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--fg);font-family:'Share Tech Mono',monospace;font-size:12px;}
+#login{display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;}
+#login input{background:#111;border:1px solid var(--dim);color:var(--fg);font-family:inherit;font-size:13px;padding:8px 12px;outline:none;width:240px;letter-spacing:2px;}
+#login button,#login input[type=submit]{background:none;border:1px solid var(--fg);color:var(--fg);font-family:inherit;font-size:11px;padding:6px 24px;cursor:pointer;letter-spacing:3px;}
+#login button:hover{background:var(--fg);color:black;}
+#app{display:none;}
+header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;}
+.grid{display:grid;grid-template-columns:200px 1fr;height:calc(100vh - 45px);}
+aside{border-right:1px solid var(--border);padding:12px;}
+aside button{background:none;border:none;color:#444;font-family:inherit;font-size:11px;text-align:left;padding:6px 8px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;display:block;width:100%;}
+aside button:hover,aside button.active{color:var(--fg);}
+aside button.active{border-left:2px solid var(--fg);padding-left:6px;}
+main{padding:24px;overflow-y:auto;}
+.panel{display:none;} .panel.active{display:block;}
+h2{font-size:10px;letter-spacing:3px;color:var(--dim);margin-bottom:20px;text-transform:uppercase;}
+.btn{background:none;border:1px solid currentColor;color:var(--fg);font-family:inherit;font-size:11px;padding:6px 14px;cursor:pointer;letter-spacing:2px;text-transform:uppercase;}
+.btn:hover{background:var(--fg);color:black;}
+.btn.danger{color:var(--red);}
+.btn.danger:hover{background:var(--red);color:black;}
+.btn:disabled{opacity:0.3;cursor:default;pointer-events:none;}
+.scard{border:1px solid var(--border);padding:14px;margin-bottom:20px;font-size:11px;line-height:2.2;}
+.scard .row{display:flex;justify-content:space-between;}
+.val{color:white;} .val.running{color:var(--fg);} .val.paused{color:#ff9900;} .val.idle{color:#444;}
+.ctrls{display:flex;gap:8px;margin-bottom:16px;}
+.seed-row{display:flex;gap:8px;margin-bottom:20px;}
+.seed-row input{flex:1;background:#111;border:1px solid var(--border);color:var(--fg);font-family:inherit;font-size:12px;padding:6px 10px;outline:none;}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.mcard{border:1px solid var(--border);padding:14px;}
+.mcard h3{font-size:10px;letter-spacing:3px;margin-bottom:14px;}
+.mcard h3.b{color:var(--b);}
+label{display:block;font-size:10px;color:#444;letter-spacing:1px;margin:10px 0 3px;}
+input[type=text],textarea{width:100%;background:#111;border:1px solid var(--border);color:var(--fg);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;}
+textarea{resize:vertical;min-height:70px;line-height:1.5;}
+.slrow{display:flex;align-items:center;gap:8px;margin-top:6px;}
+.sllabel{font-size:10px;color:#444;width:85px;}
+input[type=range]{flex:1;accent-color:var(--fg);}
+.slval{font-size:10px;color:var(--fg);width:24px;text-align:right;}
+.saverow{margin-top:16px;display:flex;gap:8px;align-items:center;}
+.savemsg{font-size:10px;color:var(--fg);opacity:0;transition:opacity 0.3s;}
+.savemsg.show{opacity:1;}
+.log{background:#050505;border:1px solid var(--border);padding:10px;height:220px;overflow-y:auto;font-size:10px;line-height:1.9;color:#444;}
+.ea{color:var(--fg);} .eb{color:var(--b);} .es{color:#333;}
+</style>
+</head>
+<body>
+<div id="login">
+  <div style="letter-spacing:6px;font-size:14px;margin-bottom:24px">ADMIN</div>
+  <input type="password" id="pw" placeholder="PASSWORD" onkeydown="if(event.key==='Enter')login()">
+  <button onclick="login()">ENTER</button>
+  <div id="lerr" style="color:#ff4040;font-size:10px;margin-top:8px;opacity:0">INCORRECT</div>
+</div>
+<div id="app">
+  <header>
+    <span style="letter-spacing:3px">DIALOGUES IN THE VOID — ADMIN</span>
+    <span id="conn" style="font-size:10px;color:var(--dim)">CONNECTING</span>
+  </header>
+  <div class="grid">
+    <aside>
+      <button class="active" onclick="showPanel('session',this)">SESSION</button>
+      <button onclick="showPanel('entities',this)">ENTITIES</button>
+      <button onclick="showPanel('pacing',this)">PACING</button>
+      <button onclick="showPanel('log',this)" style="margin-top:8px">LIVE LOG</button>
+    </aside>
+    <main>
+      <div class="panel active" id="panel-session">
+        <h2>SESSION CONTROL</h2>
+        <div class="scard">
+          <div class="row"><span>STATUS</span><span class="val idle" id="sc-s">IDLE</span></div>
+          <div class="row"><span>SESSION</span><span class="val" id="sc-id">—</span></div>
+          <div class="row"><span>TURNS</span><span class="val" id="sc-t">0</span></div>
+          <div class="row"><span>AGENTS ONLINE</span><span class="val" id="sc-a">—</span></div>
+        </div>
+        <div class="ctrls">
+          <button class="btn" id="b-start" onclick="act('start')">START</button>
+          <button class="btn" id="b-pause" onclick="act('pause')" disabled>PAUSE</button>
+          <button class="btn" id="b-resume" onclick="act('resume')" disabled>RESUME</button>
+          <button class="btn danger" id="b-stop" onclick="act('stop')" disabled>STOP</button>
+        </div>
+        <div class="seed-row">
+          <input type="text" id="seed" placeholder="SEED TOPIC OR DISRUPTOR">
+          <button class="btn" onclick="inject()">INJECT</button>
+        </div>
+        <a href="/" target="_blank" style="color:var(--dim);font-size:10px;letter-spacing:2px;text-decoration:none">→ PUBLIC PAGE</a>
+      </div>
+      <div class="panel" id="panel-entities">
+        <h2>ENTITY CONFIGURATION</h2>
+        <div class="mgrid">
+          <div class="mcard">
+            <h3>ENTITY A</h3>
+            <label>NAME</label><input type="text" id="a-name" value="ENTITY_01">
+            <label>OLLAMA MODEL</label><input type="text" id="a-model" value="llama3">
+            <label>SYSTEM PROMPT</label><textarea id="a-prompt"></textarea>
+            <label>MOOD</label><input type="text" id="a-mood" value="contemptuous">
+            <label style="margin-top:14px">SOUL</label>
+            <div id="a-soul"></div>
+          </div>
+          <div class="mcard">
+            <h3 class="b">ENTITY B</h3>
+            <label>NAME</label><input type="text" id="b-name" value="ENTITY_02">
+            <label>OLLAMA MODEL</label><input type="text" id="b-model" value="dolphin-llama3">
+            <label>SYSTEM PROMPT</label><textarea id="b-prompt"></textarea>
+            <label>MOOD</label><input type="text" id="b-mood" value="nihilistic">
+            <label style="margin-top:14px">SOUL</label>
+            <div id="b-soul"></div>
+          </div>
+        </div>
+        <div class="saverow">
+          <button class="btn" onclick="saveConfig()">SAVE</button>
+          <span class="savemsg" id="smsg">SAVED</span>
+        </div>
+      </div>
+      <div class="panel" id="panel-pacing">
+        <h2>PACING</h2>
+        <label>TURN DELAY (MS)</label><input type="text" id="p-delay" value="3000">
+        <label>MAX TOKENS PER TURN</label><input type="text" id="p-tokens" value="120">
+        <div class="saverow"><button class="btn" onclick="savePacing()">SAVE</button></div>
+      </div>
+      <div class="panel" id="panel-log">
+        <h2>LIVE LOG</h2>
+        <div class="log" id="log"></div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let pw='', socket=null;
+const SOUL=['aggression','curiosity','verbosity','nihilism','empathy'];
+
+function login(){
+  pw=document.getElementById('pw').value;
+  fetch('/api/admin/config',{headers:{'x-admin-password':pw}}).then(r=>{
+    if(r.status===401){document.getElementById('lerr').style.opacity=1;return;}
+    r.json().then(cfg=>{
+      document.getElementById('login').style.display='none';
+      document.getElementById('app').style.display='block';
+      populate(cfg); connect();
+    });
+  });
+}
+
+function connect(){
+  socket=io({query:{type:'admin'}});
+  socket.on('connect',()=>document.getElementById('conn').textContent='CONNECTED');
+  socket.on('disconnect',()=>document.getElementById('conn').textContent='DISCONNECTED');
+  socket.on('status',updateStatus);
+  socket.on('message',logMsg);
+}
+
+function updateStatus(d){
+  const s=d.orchestrator||d;
+  const el=document.getElementById('sc-s');
+  el.textContent=(s.status||'idle').toUpperCase();
+  el.className='val '+(s.status||'idle');
+  document.getElementById('sc-id').textContent=s.current_session_id?s.current_session_id.slice(0,8).toUpperCase():'—';
+  document.getElementById('sc-t').textContent=s.turn_count||0;
+  document.getElementById('sc-a').textContent=(s.agents_connected||[]).join(', ')||'—';
+  const run=s.status==='running',pau=s.status==='paused',idl=s.status==='idle';
+  document.getElementById('b-start').disabled=!idl;
+  document.getElementById('b-pause').disabled=!run;
+  document.getElementById('b-resume').disabled=!pau;
+  document.getElementById('b-stop').disabled=idl;
+}
+
+function logMsg(d){
+  const log=document.getElementById('log');
+  const e=document.createElement('div');
+  e.className=d.model_id==='A'?'ea':d.model_id==='B'?'eb':'es';
+  e.textContent=`[${new Date().toTimeString().slice(0,8)}] ${d.model_name||'SYS'}: ${(d.content||'').slice(0,90)}`;
+  log.appendChild(e); log.scrollTop=log.scrollHeight;
+}
+
+function showPanel(name,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('aside button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+async function act(action){
+  const seed=document.getElementById('seed').value;
+  await fetch(`/api/admin/session/${action}`,{method:'POST',headers:{'x-admin-password':pw,'Content-Type':'application/json'},body:JSON.stringify(action==='start'?{seed:seed||null}:{})});
+}
+
+async function inject(){
+  const text=document.getElementById('seed').value;
+  if(!text)return;
+  await fetch('/api/admin/seed',{method:'POST',headers:{'x-admin-password':pw,'Content-Type':'application/json'},body:JSON.stringify({text})});
+  document.getElementById('seed').value='';
+}
+
+function populate(cfg){
+  const a=cfg.model_a||{},b=cfg.model_b||{};
+  document.getElementById('a-name').value=a.name||'ENTITY_01';
+  document.getElementById('a-model').value=a.ollama_model||'llama3';
+  document.getElementById('a-prompt').value=a.system_prompt||'';
+  document.getElementById('a-mood').value=a.mood||'';
+  buildSliders('a',a.soul||{});
+  document.getElementById('b-name').value=b.name||'ENTITY_02';
+  document.getElementById('b-model').value=b.ollama_model||'dolphin-llama3';
+  document.getElementById('b-prompt').value=b.system_prompt||'';
+  document.getElementById('b-mood').value=b.mood||'';
+  buildSliders('b',b.soul||{});
+  const p=cfg.pacing||{};
+  document.getElementById('p-delay').value=p.turn_delay_ms||3000;
+  document.getElementById('p-tokens').value=p.max_tokens||120;
+}
+
+function buildSliders(p,soul){
+  const c=document.getElementById(`${p}-soul`);c.innerHTML='';
+  SOUL.forEach(k=>{
+    const v=soul[k]??0.5;
+    c.innerHTML+=`<div class="slrow"><span class="sllabel">${k.toUpperCase()}</span><input type="range" min="0" max="1" step="0.1" value="${v}" id="${p}-${k}" oninput="document.getElementById('${p}-${k}-v').textContent=this.value"><span class="slval" id="${p}-${k}-v">${v}</span></div>`;
+  });
+}
+
+function getSoul(p){const s={};SOUL.forEach(k=>s[k]=parseFloat(document.getElementById(`${p}-${k}`).value));return s;}
+
+async function saveConfig(){
+  const tokens=parseInt(document.getElementById('p-tokens').value)||120;
+  await fetch('/api/admin/config',{method:'POST',headers:{'x-admin-password':pw,'Content-Type':'application/json'},body:JSON.stringify({
+    model_a:{model_id:'A',name:document.getElementById('a-name').value,ollama_model:document.getElementById('a-model').value,system_prompt:document.getElementById('a-prompt').value,mood:document.getElementById('a-mood').value,soul:getSoul('a'),max_tokens:tokens,response_delay_ms:2000},
+    model_b:{model_id:'B',name:document.getElementById('b-name').value,ollama_model:document.getElementById('b-model').value,system_prompt:document.getElementById('b-prompt').value,mood:document.getElementById('b-mood').value,soul:getSoul('b'),max_tokens:tokens,response_delay_ms:2000}
+  })});
+  const m=document.getElementById('smsg');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2000);
+}
+
+async function savePacing(){
+  await fetch('/api/admin/config',{method:'POST',headers:{'x-admin-password':pw,'Content-Type':'application/json'},body:JSON.stringify({pacing:{turn_delay_ms:parseInt(document.getElementById('p-delay').value),max_tokens:parseInt(document.getElementById('p-tokens').value)}})});
+}
+</script>
+</body>
+</html>
