@@ -87,3 +87,11 @@ app.get('/api/admin/models', requireAuth, async (req, res) => {
     res.json(['llama3', 'dolphin-llama3', 'nous-hermes2']);
   }
 });
+
+// Theme toggle
+app.post('/api/admin/theme', requireAuth, (req, res) => {
+  const { theme } = req.body;
+  if (!['dark','light'].includes(theme)) return res.status(400).json({ error: 'invalid' });
+  io.emit('theme', { theme });
+  res.json({ ok: true, theme });
+});

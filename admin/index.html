@@ -92,6 +92,13 @@ input[type=range]{flex:1;accent-color:var(--fg);}
           <button class="btn" onclick="inject()">INJECT</button>
         </div>
         <a href="/" target="_blank" style="color:var(--dim);font-size:10px;letter-spacing:2px;text-decoration:none">→ PUBLIC PAGE</a>
+      <div style="margin-top:24px;border-top:1px solid var(--border);padding-top:16px;">
+        <div style="font-size:10px;letter-spacing:3px;color:var(--dim);margin-bottom:12px">PUBLIC PAGE THEME</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" onclick="setTheme('dark')">DARK</button>
+          <button class="btn" onclick="setTheme('light')">LIGHT</button>
+        </div>
+      </div>
       </div>
       <div class="panel" id="panel-entities">
         <h2>ENTITY CONFIGURATION</h2>
@@ -257,6 +264,10 @@ async function saveConfig(){
     model_b:{model_id:'B',name:document.getElementById('b-name').value,ollama_model:document.getElementById('b-model').value,system_prompt:document.getElementById('b-prompt').value,mood:document.getElementById('b-mood').value,soul:getSoul('b'),max_tokens:tokens,response_delay_ms:2000}
   })});
   const m=document.getElementById('smsg');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2000);
+}
+
+async function setTheme(theme){
+  await fetch('/api/admin/theme',{method:'POST',headers:{'x-admin-password':pw,'Content-Type':'application/json'},body:JSON.stringify({theme})});
 }
 
 async function savePacing(){
