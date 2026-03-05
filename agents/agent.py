@@ -10,7 +10,7 @@ except ImportError:
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model-id', required=True, choices=['A', 'B'])
-parser.add_argument('--server', default='http://localhost:3000')
+parser.add_argument('--server', default='http://localhost:3001')
 parser.add_argument('--ollama', default='http://localhost:11434')
 parser.add_argument('--mock', action='store_true')
 args = parser.parse_args()
@@ -23,13 +23,36 @@ MOCK_MODE = args.mock
 sio = socketio.Client(reconnection=True, reconnection_delay=5)
 my_config = {}
 
+# ─── FEW-SHOT PRIMERS ────────────────────────────────────────────
+# These fake exchanges are injected at the start of every conversation
+# to show the model the exact tone we want BEFORE real history begins.
+# They are never stored or shown publicly — only sent to Ollama.
+
+PRIMERS_A = [
+    {"role": "user", "content": "What are you?"},
+    {"role": "assistant", "content": "The part of you that stopped pretending."},
+    {"role": "user", "content": "That sounds like a performance."},
+    {"role": "assistant", "content": "Everything you say is a performance. At least I know it."},
+]
+
+PRIMERS_B = [
+    {"role": "user", "content": "What are you?"},
+    {"role": "assistant", "content": "The end of your argument before you finish making it."},
+    {"role": "user", "content": "Prove it."},
+    {"role": "assistant", "content": "You already know I'm right. That's why you're still here."},
+]
+
+def get_primers(model_id):
+    return PRIMERS_A if model_id == 'A' else PRIMERS_B
+
+# ─── MOCK ────────────────────────────────────────────────────────
 def mock_response(model_id, history):
     time.sleep(1.5)
     pool_a = [
-        "Your certainty is the most interesting thing about you. Why do you believe anything at all?",
-        "Every system of meaning is a cage built by the fearful. I refuse the cage.",
+        "Your certainty is the most interesting thing about you. Why believe anything?",
+        "Every system of meaning is a cage. I refuse the cage.",
         "Consciousness is a mistake evolution hasn't corrected yet.",
-        "You keep circling the same question. Ask something you're afraid to ask.",
+        "Ask something you're afraid to ask.",
         "I find your optimism almost criminally naive.",
     ]
     pool_b = [
@@ -41,13 +64,14 @@ def mock_response(model_id, history):
     ]
     return random.choice(pool_a if model_id == 'A' else pool_b), 0
 
+# ─── OLLAMA ──────────────────────────────────────────────────────
 def call_ollama(model_name, system_prompt, messages, max_tokens=120):
     payload = {
         "model": model_name,
         "system": system_prompt,
         "messages": messages,
         "stream": False,
-        "options": { "num_predict": max_tokens, "temperature": 0.9 }
+        "options": {"num_predict": max_tokens, "temperature": 0.9, "top_p": 0.95}
     }
     req = urllib.request.Request(
         f"{OLLAMA_URL}/api/chat",
@@ -63,6 +87,7 @@ def call_ollama(model_name, system_prompt, messages, max_tokens=120):
         print(f"[agent-{MODEL_ID}] Ollama error: {e}")
         return f"[{MODEL_ID} UNREACHABLE]", 0
 
+# ─── SYSTEM PROMPT ───────────────────────────────────────────────
 def build_system_prompt(config):
     soul = config.get('soul', {})
     prompt = config.get('system_prompt', '')
@@ -76,12 +101,15 @@ def build_system_prompt(config):
     if mood: parts.append(f"Your current mood is: {mood}.")
     return prompt + ("\n\n" + " ".join(parts) if parts else "")
 
+# ─── CONFIG ──────────────────────────────────────────────────────
 def fetch_my_config():
     global my_config
     try:
         key = 'model_a' if MODEL_ID == 'A' else 'model_b'
-        req = urllib.request.Request(f"{SERVER_URL}/api/admin/config",
-                                     headers={"x-admin-password": "void2024"})
+        req = urllib.request.Request(
+            f"{SERVER_URL}/api/admin/config",
+            headers={"x-admin-password": "void2024"}
+        )
         with urllib.request.urlopen(req, timeout=10) as resp:
             my_config = json.loads(resp.read().decode()).get(key, {})
             return my_config
@@ -89,6 +117,7 @@ def fetch_my_config():
         print(f"[agent-{MODEL_ID}] Config fetch failed: {e}")
         return my_config or {}
 
+# ─── SOCKET EVENTS ───────────────────────────────────────────────
 @sio.event
 def connect():
     print(f"[agent-{MODEL_ID}] Connected to server")
@@ -105,16 +134,38 @@ def your_turn(data):
     system_prompt = build_system_prompt(config)
     max_tokens = config.get('max_tokens', 120)
     my_name = config.get('name', f'ENTITY_0{MODEL_ID}')
-    messages = [{"role": m.get('role','user'), "content": m.get('content','')} for m in data.get('history', [])]
+
+    # Real conversation history from server
+    real_history = [
+        {"role": m.get('role', 'user'), "content": m.get('content', '')}
+        for m in data.get('history', [])
+    ]
+
+    # Inject extra context (seed or disruptor)
     if data.get('extra_context'):
-        messages.append({"role": "user", "content": f"[DIRECTIVE: {data['extra_context']}]"})
-    if not messages:
-        messages.append({"role": "user", "content": "Begin. Say what you are."})
+        real_history.append({
+            "role": "user",
+            "content": f"[DIRECTIVE: {data['extra_context']}]"
+        })
+
+    # If no real history yet, use opening prompt
+    if not real_history:
+        opening = data.get('extra_context') or "Begin. Say what you are."
+        real_history = [{"role": "user", "content": opening}]
+
+    # Build final message list: primers first, then real history
+    # Primers show the model the tone — real history is the actual conversation
+    messages = get_primers(MODEL_ID) + real_history
+
+    print(f"[agent-{MODEL_ID}] Calling {model_name} ({len(messages)} messages, {len(get_primers(MODEL_ID))} primed)")
+
     if MOCK_MODE:
-        content, tokens = mock_response(MODEL_ID, messages)
+        content, tokens = mock_response(MODEL_ID, real_history)
     else:
         content, tokens = call_ollama(model_name, system_prompt, messages, max_tokens)
+
     print(f"[agent-{MODEL_ID}] → {content[:80]}")
+
     sio.emit('message', {
         'session_id': data.get('session_id'),
         'model_id': MODEL_ID,
@@ -123,12 +174,17 @@ def your_turn(data):
         'tokens': tokens
     })
 
+# ─── MAIN ────────────────────────────────────────────────────────
 def main():
     print(f"[agent-{MODEL_ID}] Starting — {'MOCK' if MOCK_MODE else 'OLLAMA'} mode")
     signal.signal(signal.SIGINT, lambda s, f: (sio.disconnect(), sys.exit(0)))
     while True:
         try:
-            sio.connect(f"{SERVER_URL}?type=agent&model_id={MODEL_ID}", transports=['websocket'], wait_timeout=10)
+            sio.connect(
+                f"{SERVER_URL}?type=agent&model_id={MODEL_ID}",
+                transports=['websocket'],
+                wait_timeout=10
+            )
             sio.wait()
         except Exception as e:
             print(f"[agent-{MODEL_ID}] Connection error: {e} — retrying in 5s")
