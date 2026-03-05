@@ -71,3 +71,19 @@ server.listen(PORT, () => {
 ║   /admin  password: ${ADMIN_PASSWORD}       ║
 ╚══════════════════════════════════════╝`);
 });
+// Ollama models list
+app.get('/api/admin/models', requireAuth, async (req, res) => {
+  try {
+    const http = require('http');
+    const data = await new Promise((resolve, reject) => {
+      http.get('http://localhost:11434/api/tags', (r) => {
+        let body = '';
+        r.on('data', chunk => body += chunk);
+        r.on('end', () => resolve(JSON.parse(body)));
+      }).on('error', reject);
+    });
+    res.json(data.models.map(m => m.name));
+  } catch(e) {
+    res.json(['llama3', 'dolphin-llama3', 'nous-hermes2']);
+  }
+});

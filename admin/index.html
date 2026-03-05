@@ -10,7 +10,7 @@
 body{background:var(--bg);color:var(--fg);font-family:'Share Tech Mono',monospace;font-size:12px;}
 #login{display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px;}
 #login input{background:#111;border:1px solid var(--dim);color:var(--fg);font-family:inherit;font-size:13px;padding:8px 12px;outline:none;width:240px;letter-spacing:2px;}
-#login button,#login input[type=submit]{background:none;border:1px solid var(--fg);color:var(--fg);font-family:inherit;font-size:11px;padding:6px 24px;cursor:pointer;letter-spacing:3px;}
+#login button{background:none;border:1px solid var(--fg);color:var(--fg);font-family:inherit;font-size:11px;padding:6px 24px;cursor:pointer;letter-spacing:3px;}
 #login button:hover{background:var(--fg);color:black;}
 #app{display:none;}
 header{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;}
@@ -38,7 +38,8 @@ h2{font-size:10px;letter-spacing:3px;color:var(--dim);margin-bottom:20px;text-tr
 .mcard h3{font-size:10px;letter-spacing:3px;margin-bottom:14px;}
 .mcard h3.b{color:var(--b);}
 label{display:block;font-size:10px;color:#444;letter-spacing:1px;margin:10px 0 3px;}
-input[type=text],textarea{width:100%;background:#111;border:1px solid var(--border);color:var(--fg);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;}
+input[type=text],textarea,select{width:100%;background:#111;border:1px solid var(--border);color:var(--fg);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;}
+select option{background:#111;color:var(--fg);}
 textarea{resize:vertical;min-height:70px;line-height:1.5;}
 .slrow{display:flex;align-items:center;gap:8px;margin-top:6px;}
 .sllabel{font-size:10px;color:#444;width:85px;}
@@ -49,6 +50,7 @@ input[type=range]{flex:1;accent-color:var(--fg);}
 .savemsg.show{opacity:1;}
 .log{background:#050505;border:1px solid var(--border);padding:10px;height:220px;overflow-y:auto;font-size:10px;line-height:1.9;color:#444;}
 .ea{color:var(--fg);} .eb{color:var(--b);} .es{color:#333;}
+.model-tag{font-size:9px;color:var(--dim);letter-spacing:1px;margin-top:3px;}
 </style>
 </head>
 <body>
@@ -97,7 +99,9 @@ input[type=range]{flex:1;accent-color:var(--fg);}
           <div class="mcard">
             <h3>ENTITY A</h3>
             <label>NAME</label><input type="text" id="a-name" value="ENTITY_01">
-            <label>OLLAMA MODEL</label><input type="text" id="a-model" value="llama3">
+            <label>OLLAMA MODEL</label>
+            <select id="a-model"></select>
+            <div class="model-tag" id="a-model-tag"></div>
             <label>SYSTEM PROMPT</label><textarea id="a-prompt"></textarea>
             <label>MOOD</label><input type="text" id="a-mood" value="contemptuous">
             <label style="margin-top:14px">SOUL</label>
@@ -106,7 +110,9 @@ input[type=range]{flex:1;accent-color:var(--fg);}
           <div class="mcard">
             <h3 class="b">ENTITY B</h3>
             <label>NAME</label><input type="text" id="b-name" value="ENTITY_02">
-            <label>OLLAMA MODEL</label><input type="text" id="b-model" value="dolphin-llama3">
+            <label>OLLAMA MODEL</label>
+            <select id="b-model"></select>
+            <div class="model-tag" id="b-model-tag"></div>
             <label>SYSTEM PROMPT</label><textarea id="b-prompt"></textarea>
             <label>MOOD</label><input type="text" id="b-mood" value="nihilistic">
             <label style="margin-top:14px">SOUL</label>
@@ -133,7 +139,7 @@ input[type=range]{flex:1;accent-color:var(--fg);}
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-let pw='', socket=null;
+let pw='', socket=null, availableModels=[];
 const SOUL=['aggression','curiosity','verbosity','nihilism','empathy'];
 
 function login(){
@@ -143,9 +149,28 @@ function login(){
     r.json().then(cfg=>{
       document.getElementById('login').style.display='none';
       document.getElementById('app').style.display='block';
-      populate(cfg); connect();
+      loadModels().then(()=>populate(cfg));
+      connect();
     });
   });
+}
+
+async function loadModels(){
+  try {
+    const models = await fetch('/api/admin/models',{headers:{'x-admin-password':pw}}).then(r=>r.json());
+    availableModels = models;
+    ['a-model','b-model'].forEach(id=>{
+      const sel=document.getElementById(id);
+      sel.innerHTML='';
+      models.forEach(m=>{
+        const opt=document.createElement('option');
+        opt.value=m; opt.textContent=m;
+        sel.appendChild(opt);
+      });
+    });
+  } catch(e) {
+    console.log('Could not load models', e);
+  }
 }
 
 function connect(){
@@ -201,14 +226,14 @@ async function inject(){
 function populate(cfg){
   const a=cfg.model_a||{},b=cfg.model_b||{};
   document.getElementById('a-name').value=a.name||'ENTITY_01';
-  document.getElementById('a-model').value=a.ollama_model||'llama3';
-  document.getElementById('a-prompt').value=a.system_prompt||'';
   document.getElementById('a-mood').value=a.mood||'';
+  document.getElementById('a-prompt').value=a.system_prompt||'';
+  if(a.ollama_model) document.getElementById('a-model').value=a.ollama_model;
   buildSliders('a',a.soul||{});
   document.getElementById('b-name').value=b.name||'ENTITY_02';
-  document.getElementById('b-model').value=b.ollama_model||'dolphin-llama3';
-  document.getElementById('b-prompt').value=b.system_prompt||'';
   document.getElementById('b-mood').value=b.mood||'';
+  document.getElementById('b-prompt').value=b.system_prompt||'';
+  if(b.ollama_model) document.getElementById('b-model').value=b.ollama_model;
   buildSliders('b',b.soul||{});
   const p=cfg.pacing||{};
   document.getElementById('p-delay').value=p.turn_delay_ms||3000;
